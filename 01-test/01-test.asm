@@ -1,5 +1,5 @@
 ; To compile:
-;    vasm6502_oldstyle.exe 01-test.asm -c02 -dotdir -Fbin
+;    vasm6502_oldstyle.exe 01-test.asm -o 01-test.bin -c02 -dotdir -Fbin
 
 	.org $8000
 

@@ -1,7 +1,7 @@
 	; Rotate a pattern on the data lines to the right and push it to the VIA chip.
 
 	; To compile:
-	;    vasm6502_oldstyle.exe 03-hello-world -c02 -dotdir -Fbin
+	;    vasm6502_oldstyle.exe 04-hello-world.asm -o 04-hello-world.bin -c02 -dotdir -Fbin
 
 PORTA = $6001
 PORTB = $6000

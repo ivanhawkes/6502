@@ -1,5 +1,5 @@
 	; To compile:
-	;    vasm6502_oldstyle.exe 03-rotate-right.asm -c02 -dotdir -Fbin
+	;    vasm6502_oldstyle.exe 03-rotate-right.asm -o 03-rotate-right.bin -c02 -dotdir -Fbin
 
 	.org $8000
 
