@@ -3,17 +3,17 @@
 
 	.org $8000
 
-PORTA = $6001
-PORTB = $6000
-DDRA = $6003
-DDRB = $6002
+PORTA		= $6001
+PORTB		= $6000
+DDRA		= $6003
+DDRB		= $6002
 
-PATTERNA = %00000000
-PATTERNB = %11111111
-PATTERNC = %00001111
-PATTERND = %11110000
-PATTERNE = %10101010
-PATTERNF = %01010101
+PATTERNA	= %00000000		; All the pins low.
+PATTERNB	= %11111111		; All the pins high.
+PATTERNC	= %00001111		; Left half low, right half high.
+PATTERND	= %11110000		; Left half high, right half low.
+PATTERNE	= %10101010		; Alternating.
+PATTERNF	= %01010101		; Alternating.
 
 reset:
 	lda #%11111111			; Set all pins on port B to output.
