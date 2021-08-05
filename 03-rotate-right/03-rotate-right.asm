@@ -14,6 +14,7 @@ reset:
 
 	lda #%10101010			; Place a pattern in the accumulator.
 	sta PORTB				; Write the pattern to port B.
+	clc						; Make sure the carry is in a known state.
 
 loop:
 	ror						; Rotate the pattern of bits.

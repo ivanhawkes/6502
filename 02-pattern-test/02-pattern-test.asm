@@ -14,6 +14,8 @@ PATTERNC	= %00001111		; Left half low, right half high.
 PATTERND	= %11110000		; Left half high, right half low.
 PATTERNE	= %10101010		; Alternating.
 PATTERNF	= %01010101		; Alternating.
+PATTERNG	= %11001100		; Alternating in pairs.
+PATTERNH	= %00110011		; Alternating in pairs.
 
 reset:
 	lda #%11111111			; Set all pins on port B to output.
@@ -46,6 +48,22 @@ loop:
 	lda #PATTERNF
 	sta PORTB				; Write the pattern to port B.
 	nop
+
+	lda #PATTERNG
+	sta PORTB				; Write the pattern to port B.
+	nop
+
+	lda #PATTERNH
+	sta PORTB				; Write the pattern to port B.
+	nop
+
+	lda #$01				; Prepare to walk the LEDS from lowest bit to highest bit.
+
+counter:
+	sta PORTB				; Write the pattern to port B.
+	nop
+	asl
+	bcc counter
 
 	jmp loop
 
