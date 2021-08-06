@@ -12,10 +12,11 @@ PORTA		= $6001
 PORTB		= $6000
 DDRA		= $6003
 DDRB		= $6002
-RAMTEST		= $4000
+RAMTEST		= $1000
 PATTERNA	= %00000000		; All the pins low.
 PATTERNB	= %11111111		; All the pins high.
 PATTERNC	= %00001111		; Left half low, right half high.
+PATTERND	= %11110000		; Left half high, right half low.
 
 
 reset:
@@ -41,13 +42,17 @@ counter:
 
 	pha						; Save current value on the stack.
 
-	eor #$ff				; XOR so the value we push is different to the one we load back from RAM.
-	sta PORTB				
+	lda #PATTERNC			; Flash some LEDS for debug.
+	sta PORTB
 	
 	lda RAMTEST, x			; Try and load from RAM.
 	sta PORTB				
 
+	lda #PATTERND			; Flash some LEDS for debug.
+	sta PORTB
+
 	pla						; Get our accumulator back, we need it for the loop.
+	sta PORTB				
 
 	inx						; Step through a range of memory locations.
 	asl						; Step through powers of two.
