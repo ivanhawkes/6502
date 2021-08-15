@@ -1,16 +1,16 @@
 	; Rotate a pattern on the data lines to the right and push it to the VIA chip.
 
 	; To compile:
-	;    vasm6502_oldstyle.exe 04-hello-world.asm -o 04-hello-world.bin -c02 -dotdir -Fbin
+	;    vasm6502_oldstyle.exe 05-hello-world.asm -o 05-hello-world.bin -c02 -dotdir -Fbin
 
-PORTA = $6001
-PORTB = $6000
-DDRA = $6003
-DDRB = $6002
+PORTA		= $6001
+PORTB		= $6000
+DDRA		= $6003
+DDRB		= $6002
 
-E  = %10000000
-RW = %01000000
-RS = %00100000
+E			= %10000000
+RW			= %01000000
+RS			= %00100000
 
 	.org $8000
 
@@ -51,7 +51,8 @@ lcd_wait:
 	pha
 	lda #%00000000 			; Port B is input.
 	sta DDRB
-	lcdbusy:
+
+lcdbusy:
 	lda #RW
 	sta PORTA
 	lda #(RW | E)
