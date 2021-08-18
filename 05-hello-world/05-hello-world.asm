@@ -10,8 +10,8 @@ VIA_BASE_ADDR			= $6000
 ; 6522 VIA ports and registers.
 PORT_B					= VIA_BASE_ADDR + 0
 PORT_A					= VIA_BASE_ADDR + 1
-DDRB					= VIA_BASE_ADDR + 2
-DDRA					= VIA_BASE_ADDR + 3
+DATA_DIR_B				= VIA_BASE_ADDR + 2
+DATA_DIR_A				= VIA_BASE_ADDR + 3
 T1CL					= VIA_BASE_ADDR + 4
 T1CH					= VIA_BASE_ADDR + 5
 T1LL					= VIA_BASE_ADDR + 6
@@ -34,19 +34,20 @@ LCD_READ_SELECT			= %00100000
 	.org $8000
 
 main:
+	; Reset the stack to the top.
 	ldx #$ff
 	txs
 
 	; Set all pins on port B to output.
 	lda #%11111111
-	sta DDRB
+	sta DATA_DIR_B
 
 	; TODO: Need to switch which pins are being used for this since they conflict with the pins
 	; I want to use for the I2C console.
 
 	; Set top 3 pins on port A to output.
 	lda #%11100000
-	sta DDRA
+	sta DATA_DIR_A
 
 	; Set 8-bit mode, 2-line display, 5x8 font.
 	lda #%00111000
@@ -85,7 +86,7 @@ i2cScratchByte:
 lcdWait:
 	pha
 	lda #%00000000 				; Port B is input.
-	sta DDRB
+	sta DATA_DIR_B
 
 lcdBusy:
 	lda #LCD_READ_WRITE
@@ -99,25 +100,25 @@ lcdBusy:
 	lda #LCD_READ_WRITE
 	sta PORT_A
 	lda #%11111111 				; Port B is output.
-	sta DDRB
+	sta DATA_DIR_B
 	pla
 	rts
 
 lcdInstruction:
 	jsr lcdWait
 	sta PORT_B
-	lda #0						; Clear RS/RW/E bits.
+	lda #0						; Clear RS / RW / E bits.
 	sta PORT_A
 	lda #LCD_START_INSTRUCTION	; Set E bit to send instruction.
 	sta PORT_A
-	lda #0						; Clear RS/RW/E bits.
+	lda #0						; Clear RS / RW / E bits.
 	sta PORT_A
 	rts
 
 printChar:
 	jsr lcdWait
 	sta PORT_B
-	lda #LCD_READ_SELECT		; Set RS, Clear RW/E bits.
+	lda #LCD_READ_SELECT		; Set RS, Clear RW / E bits.
 	sta PORT_A
 	lda #(LCD_READ_SELECT | LCD_START_INSTRUCTION)	; Set E bit to send instruction.
 	sta PORT_A
