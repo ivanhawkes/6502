@@ -34,116 +34,19 @@ LCD_READ_SELECT			= %00010000
 LCD_CTRL_PINS_OUTPUT	= (LCD_START_INSTRUCTION | LCD_READ_WRITE | LCD_READ_SELECT)
 
 ; Give our device an unique ID for I2C.
-I2C_DEVICE_ID			= $60
+I2C_DEVICE_ID			= %01000011
+MONITOR_DEVICE_ID		= %01000010
 
 BIT_I2C_DATA_LINE		= %10000000
 BIT_I2C_CLOCK_LINE		= %00000001
 BIT_I2C_BOTH_LINES		= (BIT_I2C_DATA_LINE | BIT_I2C_CLOCK_LINE)
 
 	.org $8000
+	jmp main
 
-main:
-	; Reset the stack to the top.
-	ldx #$ff
-	txs
-
-	; Set all pins on port B to output.
-	lda #%11111111
-	sta DATA_DIR_B
-
-	; TODO: Need to switch which pins are being used for this since they conflict with the pins
-	; I want to use for the I2C console.
-
-	; Set top 3 pins on port A to output.
-	lda #LCD_CTRL_PINS_OUTPUT
-	sta DATA_DIR_A
-
-	; Set 8-bit mode, 2-line display, 5x8 font.
-	lda #%00111000
-	jsr lcdInstruction
-
-	; Display on, cursor on, blink off.
-	lda #%00001110
-	jsr lcdInstruction
-
-	; Increment and shift cursor, don't shift display.
-	lda #%00000110
-	jsr lcdInstruction
-
-	; Clear display.
-	lda #$00000001
-	jsr lcdInstruction
-
-	ldx #0
-
-printStrz:
-	lda message, x
-	beq printStrzExit
-	jsr printChar
-	inx
-	jmp printStrz
-
-printStrzExit:
-	; Initialise I2C.
-	jsr i2cPowerOn
-
-mainLoop:
-	
-
-	; Infinite loop.
-	jmp mainLoop
-
-message:
-	.asciiz "Monitor v0.1 Ready"
-
-i2cScratchByte:
-	.byte 1
-
-lcdWait:
-	pha
-	stz DATA_DIR_B 				; Port B is input.
-
-lcdBusy:
-	lda #LCD_READ_WRITE
-	sta PORT_A
-	lda #(LCD_READ_WRITE | LCD_START_INSTRUCTION)
-	sta PORT_A
-	lda PORT_B
-	and #%10000000				; Busy flag is bit 7.
-	bne lcdBusy
-
-	lda #LCD_READ_WRITE
-	sta PORT_A
-	lda #%11111111 				; Port B is output.
-	sta DATA_DIR_B
-	pla
-	rts
-
-lcdInstruction:
-	jsr lcdWait
-	sta PORT_B
-	stz PORT_A					; Clear RS / RW / E bits.
-	lda #LCD_START_INSTRUCTION	; Set E bit to send instruction.
-	sta PORT_A
-	stz PORT_A					; Clear RS / RW / E bits.
-	rts
-
-printChar:
-	jsr lcdWait
-	sta PORT_B
-	lda #LCD_READ_SELECT		; Set RS, Clear RW / E bits.
-	sta PORT_A
-	lda #(LCD_READ_SELECT | LCD_START_INSTRUCTION)	; Set E bit to send instruction.
-	sta PORT_A
-	lda #LCD_READ_SELECT		; Clear E bits.
-	sta PORT_A
-	rts
-
-
-; ***
-; *** I2C Routines.
-; ***
-
+;
+; I2C Routines.
+;
 
 I2C_DATA_UP:		.macro
 	lda #BIT_I2C_DATA_LINE		; Two instructions here. Clear bit 7 of the DDR
@@ -202,15 +105,15 @@ i2cAckQuestion:
 	rts
 
 i2cPowerOn:
-	lda #%10000000				; Clear bit 7 of port B. It must first be made an output by doing i2cInit.
-	trb PORT_B
+	;lda #%10000000				; Clear bit 7 of port B. It must first be made an output by doing i2cInit.
+	;trb PORT_B
 	rts
 
 i2cPowerOff: 					; (Basically the same as i2cInit below.)
 i2cInit: 						; Set up the port bit directions and values. Leaves power off, clk & data low.
 	lda #%10000000
-	tsb PORT_B 					; Make PB7 put out a high level (I2C power off) when made an output,
-	tsb DATA_DIR_B 				; then make PB7 an output.
+	;tsb PORT_B 				; Make PB7 put out a high level (I2C power off) when made an output,
+	;tsb DATA_DIR_B 			; then make PB7 an output.
 
 	inc A 						; Put 10000001B in A for data and clock lines on port A.
 	tsb DATA_DIR_A 				; Make PA0 and PA7 outputs to hold clock and data low while power is off,
@@ -266,6 +169,168 @@ i2cRB2:
 	dex
 	bne i2cRB1 					; Go back for next bit if there is one.
 	rts
+
+;
+; LCD Routines.
+;
+
+message:
+	.asciiz "Rdy:"
+
+i2cScratchByte:
+	.byte 1
+
+printStrz:
+	ldx #0						; Init the x register used to offset into the array of characters.
+
+printStrzLoop:
+	lda message, x				; Get the next character.
+	beq printStrzExit			; It's a zero, we're done.
+	jsr printChar				; Non-zero - print it.
+	inx
+	jmp printStrzLoop
+
+printStrzExit:
+	rts
+
+lcdWait:
+	pha
+	stz DATA_DIR_B 				; Port B is input.
+
+lcdBusy:
+	lda #LCD_READ_WRITE
+	sta PORT_A
+	lda #(LCD_READ_WRITE | LCD_START_INSTRUCTION)
+	sta PORT_A
+	lda PORT_B
+	and #%10000000				; Busy flag is bit 7.
+	bne lcdBusy
+
+	lda #LCD_READ_WRITE
+	sta PORT_A
+	lda #%11111111 				; Port B is output.
+	sta DATA_DIR_B
+	pla
+	rts
+
+lcdInstruction:
+	jsr lcdWait
+	sta PORT_B
+	stz PORT_A					; Clear RS / RW / E bits.
+	lda #LCD_START_INSTRUCTION	; Set E bit to send instruction.
+	sta PORT_A
+	stz PORT_A					; Clear RS / RW / E bits.
+	rts
+
+printChar:
+	jsr lcdWait
+	sta PORT_B
+	lda #LCD_READ_SELECT		; Set RS, Clear RW / E bits.
+	sta PORT_A
+	lda #(LCD_READ_SELECT | LCD_START_INSTRUCTION)	; Set E bit to send instruction.
+	sta PORT_A
+	lda #LCD_READ_SELECT		; Clear E bits.
+	sta PORT_A
+	rts
+
+;
+; Main
+;
+
+main:
+	; Reset the stack to the top.
+	ldx #$ff
+	txs
+
+	; Set all pins on port B to output.
+	lda #%11111111
+	sta DATA_DIR_B
+
+	; TODO: Need to switch which pins are being used for this since they conflict with the pins
+	; I want to use for the I2C console.
+
+	; Set top 3 pins on port A to output.
+	lda #LCD_CTRL_PINS_OUTPUT
+	sta DATA_DIR_A
+
+	; Set 8-bit mode, 2-line display, 5x8 font.
+	lda #%00111000
+	jsr lcdInstruction
+
+	; Display on, cursor on, blink off.
+	lda #%00001110
+	jsr lcdInstruction
+
+	; Increment and shift cursor, don't shift display.
+	lda #%00000110
+	jsr lcdInstruction
+
+	; Clear display.
+	lda #$00000001
+	jsr lcdInstruction
+
+	; Print our welcome message.
+	jsr printStrz
+
+	; Initialise I2C.
+	jsr i2cInit
+	jsr i2cClear
+
+mainLoop:
+	jsr i2cStart
+	lda #MONITOR_DEVICE_ID
+	asl
+	jsr i2cSendByte
+
+	jsr i2cStart
+	lda #$aa
+	jsr i2cSendByte
+	jsr i2cStop
+
+	; Just in case, for testing.
+	jsr i2cClear
+
+	; HACK: knock on all the doors
+	lda #$01
+loopy:
+	pha
+	jsr i2cStart
+	jsr i2cSendByte
+
+	jsr i2cStart
+	lda #$55
+	jsr i2cSendByte
+	jsr i2cStop
+
+	nop
+	nop
+	nop
+	nop
+
+	pla
+	inc
+	bne loopy
+
+monitorTestExit:
+	jsr i2cStop
+	
+	ldx #$ff
+	ldy #$ff
+ 
+wasteTime:
+	nop
+	dex
+	bne wasteTime
+	dey
+	bne wasteTime
+	
+	; HACK: Anything working?
+	lda #$41
+	jsr printChar
+
+	; Infinite loop.
+	jmp mainLoop
+
 
 	.org $fffc
 	.word main
