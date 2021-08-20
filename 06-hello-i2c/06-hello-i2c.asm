@@ -234,6 +234,27 @@ printChar:
 	rts
 
 ;
+; Misc
+;
+
+; Place a pair of counters into the X and Y registers and this will waste about 20 cycles each loop through.
+
+wasteTime:
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	dex
+	bne wasteTime
+	dey
+	bne wasteTime
+	rts
+
+;
 ; Main
 ;
 
@@ -272,61 +293,59 @@ main:
 	; Print our welcome message.
 	jsr printStrz
 
+	; Set all pins on port A to input.
+	lda #%00000000
+	sta DATA_DIR_A
+
 	; Initialise I2C.
 	jsr i2cInit
 	jsr i2cClear
 
 mainLoop:
 	jsr i2cStart
-	lda #MONITOR_DEVICE_ID
-	asl
+	lda #%11110000
+	; lda #MONITOR_DEVICE_ID
+	; asl
 	jsr i2cSendByte
 
 	jsr i2cStart
-	lda #$aa
-	jsr i2cSendByte
-	jsr i2cStop
-
-	; Just in case, for testing.
-	jsr i2cClear
-
-	; HACK: knock on all the doors
-	lda #$01
-loopy:
-	pha
-	jsr i2cStart
+	lda #%10001000
 	jsr i2cSendByte
 
-	jsr i2cStart
-	lda #$55
-	jsr i2cSendByte
-	jsr i2cStop
+; 	; Just in case, for testing.
+; 	jsr i2cClear
 
-	nop
-	nop
-	nop
-	nop
+; 	; HACK: knock on all the doors
+; 	lda #$01
+; loopy:
+; 	pha
+; 	jsr i2cStart
+; 	jsr i2cSendByte
 
-	pla
-	inc
-	bne loopy
+; 	jsr i2cStart
+; 	lda #$55
+; 	jsr i2cSendByte
+; 	jsr i2cStop
+
+; 	nop
+; 	nop
+; 	nop
+; 	nop
+
+; 	pla
+; 	inc
+; 	bne loopy
 
 monitorTestExit:
 	jsr i2cStop
 	
-	ldx #$ff
-	ldy #$ff
- 
-wasteTime:
-	nop
-	dex
-	bne wasteTime
-	dey
-	bne wasteTime
+	ldx #$4
+	ldy #$1
+	jsr wasteTime
 	
 	; HACK: Anything working?
-	lda #$41
-	jsr printChar
+	; lda #$41
+	; jsr printChar
 
 	; Infinite loop.
 	jmp mainLoop
