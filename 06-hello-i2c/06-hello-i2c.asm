@@ -48,126 +48,118 @@ BIT_I2C_BOTH_LINES		= (BIT_I2C_DATA_LINE | BIT_I2C_CLOCK_LINE)
 ; I2C Routines.
 ;
 
-I2C_DATA_UP:		.macro
-	lda #BIT_I2C_DATA_LINE		; Two instructions here. Clear bit 7 of the DDR
-	trb DATA_DIR_A 				; to make PA7 an input and let it float up.
+I2C_DATA_DIR_READ:				.macro
+	lda #BIT_I2C_DATA_LINE
+	trb DATA_DIR_A
 	.endm
 
-I2C_DATA_DN:		.macro
-	lda #BIT_I2C_DATA_LINE		; Two instructions here. Set bit 7 of the DDR
-	tsb DATA_DIR_A 				; to make PA7 an output and pull it down since
-	.endm 						; bit 7 of the output register is a 0.
+I2C_DATA_DIR_WRITE:				.macro
+	lda #BIT_I2C_DATA_LINE
+	tsb DATA_DIR_A
+	.endm
 
-I2C_CLK_UP:			.macro 		; (as above)
+I2C_CLK_DIR_READ:				.macro
 	lda #BIT_I2C_CLOCK_LINE
 	trb DATA_DIR_A
 	.endm
 
-I2C_CLK_DN:			.macro 		; (as above)
+I2C_CLK_DIR_WRITE:				.macro
 	lda #BIT_I2C_CLOCK_LINE
 	tsb DATA_DIR_A
 	.endm
 
 i2cStart:
-	I2C_DATA_UP
-	I2C_CLK_UP
-	I2C_DATA_DN
-
+	I2C_DATA_DIR_READ
+	I2C_CLK_DIR_READ
+	I2C_DATA_DIR_WRITE
 i2cStartExit:
-	inc DATA_DIR_A 				; Clk down. We now know the bit val, so just inc.
-	trb DATA_DIR_A 				; Data up, using accum val left from I2C_DATA_DN above.
+	inc DATA_DIR_A 						; Clk down. We now know the bit val, so just inc.
+	trb DATA_DIR_A 						; Data up, using accum val left from I2C_DATA_DIR_WRITE above.
 	rts
 
 i2cStop:
-	I2C_DATA_DN
-	I2C_CLK_UP
-	I2C_DATA_UP
+	I2C_DATA_DIR_WRITE
+	I2C_CLK_DIR_READ
+	I2C_DATA_DIR_READ
 	bra i2cStartExit
 
 i2cAck:
-	I2C_DATA_DN 				; Acknowledge. The ACK bit in I2C is the 9th bit of a "byte".
-
+	I2C_DATA_DIR_WRITE 					; Acknowledge. The ACK bit in I2C is the 9th bit of a "byte".
 i2cAckExit:
-	I2C_CLK_UP 					; Acknowledging consists of pulling it down.
-	inc DATA_DIR_A 				; Clk down. We know the bit val, so just inc.
-	I2C_DATA_UP
+	I2C_CLK_DIR_READ 					; Acknowledging consists of pulling it down.
+	inc DATA_DIR_A 						; Clk down. We know the bit val, so just inc.
+	I2C_DATA_DIR_READ
 	rts
 
 i2cNAck:
-	I2C_DATA_UP 				; Not acknowledge.
+	I2C_DATA_DIR_READ 					; Not acknowledge.
 	bra i2cAckExit
 
 i2cAckQuestion:
-	I2C_DATA_UP 				; At end, N=0 means ACK. N=1 means NAK.
-	I2C_CLK_UP
-	bit PORT_A 					; Bit 7 (the data line) gets put in the N flag.
-	tsb DATA_DIR_A 				; Clk down. Accum still has 1 from I2C_CLK_UP. Take advantage.
+	I2C_DATA_DIR_READ 					; At end, N=0 means ACK. N=1 means NAK.
+	I2C_CLK_DIR_READ
+	bit PORT_A 							; Bit 7 (the data line) gets put in the N flag.
+	tsb DATA_DIR_A 						; Clk down. Accum still has 1 from I2C_CLK_DIR_READ. Take advantage.
 	rts
 
 i2cPowerOn:
-	;lda #%10000000				; Clear bit 7 of port B. It must first be made an output by doing i2cInit.
-	;trb PORT_B
 	rts
 
-i2cPowerOff: 					; (Basically the same as i2cInit below.)
-i2cInit: 						; Set up the port bit directions and values. Leaves power off, clk & data low.
-	lda #%10000000
-	;tsb PORT_B 				; Make PB7 put out a high level (I2C power off) when made an output,
-	;tsb DATA_DIR_B 			; then make PB7 an output.
+i2cPowerOff: 							; (Basically the same as i2cInit below.)
+i2cInit: 								; Set up the port bit directions and values. Leaves power off, clk & data low.
+	lda #BIT_I2C_BOTH_LINES
+	tsb DATA_DIR_A 						; Make PA0 and PA7 outputs to hold clock and data low while power is off,
+	trb PORT_A 	 						; and make the output value to be 0 for the same.
+	rts 	 							; You might want to leave a delay to let the power die out so devices are really
+										; cleared before turning it back on. Then you shouldn't need i2cClear below.
 
-	inc A 						; Put 10000001B in A for data and clock lines on port A.
-	tsb DATA_DIR_A 				; Make PA0 and PA7 outputs to hold clock and data low while power is off,
-	trb PORT_A 	 				; and make the output value to be 0 for the same.
-	rts 	 					; You might want to leave a delay to let the power die out so devices are really
-								; cleared before turning it back on. Then you shouldn't need i2cClear below.
-
-i2cClear: 						; This clears any unwanted transaction that might be in progress, by giving
-	jsr i2cStop 				; enough clock pulses to finish a byte and not acknowledging it.
+i2cClear: 								; This clears any unwanted transaction that might be in progress, by giving
+	jsr i2cStop 						; enough clock pulses to finish a byte and not acknowledging it.
 	jsr i2cStart
-	I2C_DATA_UP 				; Keep data line released so we don't ACK any byte sent by a device.
-	ldx #9 						; Loop 9x to send 9 clock pulses to finish any byte a device might send.
+	I2C_DATA_DIR_READ 					; Keep data line released so we don't ACK any byte sent by a device.
+	ldx #9 								; Loop 9x to send 9 clock pulses to finish any byte a device might send.
 
 i2cClearLoop:
-	dec DATA_DIR_A 				; Like I2C_CLK_UP since we know i2cStart left clock down (DDRA bit 0 high).
-	inc DATA_DIR_A 				; Like I2C_CLK_DN since we know the state from the above instruction.
+	dec DATA_DIR_A 						; Like I2C_CLK_DIR_READ since we know i2cStart left clock down (DDRA bit 0 high).
+	inc DATA_DIR_A 						; Like I2C_CLK_DIR_WRITE since we know the state from the above instruction.
 	dex
 	bne i2cClearLoop
 	jsr i2cStart
-	jmp i2cStop 				; (jsr, rts)
+	jmp i2cStop 						; (jsr, rts)
 
-i2cSendByte: 					; Start with byte in A, and clock low. Ends with i2cAckQuestion.
-	sta i2cScratchByte 			; Store the byte in a variable so we can use A with tsb & trb for data line.
-	lda #%10000000 				; Init A for mask for trb & tsb below. A does not get disturbed below.
-	ldx #8 						; We will do 8 bits.
+i2cSendByte: 							; Start with byte in A, and clock low. Ends with i2cAckQuestion.
+	sta i2cScratchByte 					; Store the byte in a variable so we can use A with tsb & trb for data line.
+	lda #%10000000 						; Init A for mask for trb & tsb below. A does not get disturbed below.
+	ldx #8 								; We will do 8 bits.
 
 i2cSB1:
-	trb DATA_DIR_A 				; Release data line. This is like I2C_DATA_UP but saves 1 instruction.
-	asl i2cScratchByte 			; Get next bit to send and put it in the C flag.
+	trb DATA_DIR_A 						; Release data line. This is like I2C_DATA_DIR_READ but saves 1 instruction.
+	asl i2cScratchByte 					; Get next bit to send and put it in the C flag.
 	bcs i2cSB2
-	tsb DATA_DIR_A 				; If the bit was 0, pull data line down by making it an output.
+	tsb DATA_DIR_A 						; If the bit was 0, pull data line down by making it an output.
 
 i2cSB2:
-	dec DATA_DIR_A 				; Do a high pulse on the clock line. Remember there's a 0 in the output
-	inc DATA_DIR_A 				; register bit, and dec'ing DDRA makes that bit an input, so it can float up.
-	dex 		 				; IOW, it's backwards from what it seems.
+	dec DATA_DIR_A 						; Do a high pulse on the clock line. Remember there's a 0 in the output
+	inc DATA_DIR_A 						; register bit, and dec'ing DDRA makes that bit an input, so it can float up.
+	dex 		 						; IOW, it's backwards from what it seems.
 	bne i2cSB1
-	jmp i2cAckQuestion			; (jsr, rts)
+	jmp i2cAckQuestion					; (jsr, rts)
 
-i2cReceiveByte:					; Start with clock low. Ends with byte in i2cScratchByte. Do ACK bit separately.
-	I2C_DATA_UP 				; Make sure we're not holding the data line down. Be ready to input data.
-	ldx #8 						; We will do 8 bits. There's no need to init i2cScratchByte.
+i2cReceiveByte:							; Start with clock low. Ends with byte in i2cScratchByte. Do ACK bit separately.
+	I2C_DATA_DIR_READ 						; Make sure we're not holding the data line down. Be ready to input data.
+	ldx #8 								; We will do 8 bits. There's no need to init i2cScratchByte.
 
 i2cRB1:
-	dec DATA_DIR_A 				; Set clock line high.
-	asl i2cScratchByte 			; Get the forming byte's next bit position ready to accept the bit.
-	bit PORT_A 					; Read the data line value into N flag.
-	bpl i2cRB2 					; If the data line was high,
-	inc i2cScratchByte 			; increment the 1's place to a 1 in the forming byte. (asl made bit 0 = 0.)
+	dec DATA_DIR_A 						; Set clock line high.
+	asl i2cScratchByte 					; Get the forming byte's next bit position ready to accept the bit.
+	bit PORT_A 							; Read the data line value into N flag.
+	bpl i2cRB2 							; If the data line was high,
+	inc i2cScratchByte 					; increment the 1's place to a 1 in the forming byte. (asl made bit 0 = 0.)
 
 i2cRB2:
-	inc DATA_DIR_A 				; Put clock line back low.
+	inc DATA_DIR_A 						; Put clock line back low.
 	dex
-	bne i2cRB1 					; Go back for next bit if there is one.
+	bne i2cRB1 							; Go back for next bit if there is one.
 	rts
 
 ;
@@ -181,12 +173,12 @@ i2cScratchByte:
 	.byte 1
 
 printStrz:
-	ldx #0						; Init the x register used to offset into the array of characters.
+	ldx #0								; Init the x register used to offset into the array of characters.
 
 printStrzLoop:
-	lda message, x				; Get the next character.
-	beq printStrzExit			; It's a zero, we're done.
-	jsr printChar				; Non-zero - print it.
+	lda message, x						; Get the next character.
+	beq printStrzExit					; It's a zero, we're done.
+	jsr printChar						; Non-zero - print it.
 	inx
 	jmp printStrzLoop
 
@@ -195,7 +187,7 @@ printStrzExit:
 
 lcdWait:
 	pha
-	stz DATA_DIR_B 				; Port B is input.
+	stz DATA_DIR_B 						; Port B is input.
 
 lcdBusy:
 	lda #LCD_READ_WRITE
@@ -203,12 +195,12 @@ lcdBusy:
 	lda #(LCD_READ_WRITE | LCD_START_INSTRUCTION)
 	sta PORT_A
 	lda PORT_B
-	and #%10000000				; Busy flag is bit 7.
+	and #%10000000						; Busy flag is bit 7.
 	bne lcdBusy
 
 	lda #LCD_READ_WRITE
 	sta PORT_A
-	lda #%11111111 				; Port B is output.
+	lda #%11111111 						; Port B is output.
 	sta DATA_DIR_B
 	pla
 	rts
@@ -216,20 +208,20 @@ lcdBusy:
 lcdInstruction:
 	jsr lcdWait
 	sta PORT_B
-	stz PORT_A					; Clear RS / RW / E bits.
-	lda #LCD_START_INSTRUCTION	; Set E bit to send instruction.
+	stz PORT_A							; Clear RS / RW / E bits.
+	lda #LCD_START_INSTRUCTION			; Set E bit to send instruction.
 	sta PORT_A
-	stz PORT_A					; Clear RS / RW / E bits.
+	stz PORT_A							; Clear RS / RW / E bits.
 	rts
 
 printChar:
 	jsr lcdWait
 	sta PORT_B
-	lda #LCD_READ_SELECT		; Set RS, Clear RW / E bits.
+	lda #LCD_READ_SELECT				; Set RS, Clear RW / E bits.
 	sta PORT_A
 	lda #(LCD_READ_SELECT | LCD_START_INSTRUCTION)	; Set E bit to send instruction.
 	sta PORT_A
-	lda #LCD_READ_SELECT		; Clear E bits.
+	lda #LCD_READ_SELECT				; Clear E bits.
 	sta PORT_A
 	rts
 
@@ -240,11 +232,11 @@ printChar:
 ; Place a pair of counters into the X and Y registers and this will waste about 20 cycles each loop through.
 
 wasteTime:
-	nop
-	nop
-	nop
-	nop
-	nop
+	; nop
+	; nop
+	; nop
+	; nop
+	; nop
 	nop
 	nop
 	nop
@@ -270,7 +262,7 @@ main:
 	; TODO: Need to switch which pins are being used for this since they conflict with the pins
 	; I want to use for the I2C console.
 
-	; Set top 3 pins on port A to output.
+	; Set control pins on port A to output.
 	lda #LCD_CTRL_PINS_OUTPUT
 	sta DATA_DIR_A
 
@@ -293,24 +285,37 @@ main:
 	; Print our welcome message.
 	jsr printStrz
 
-	; Set all pins on port A to input.
-	lda #%00000000
-	sta DATA_DIR_A
+	; TEST: What do we need to init the I2C?
+	;jsr i2cInit
 
-	; Initialise I2C.
-	jsr i2cInit
-	jsr i2cClear
+	I2C_DATA_DIR_READ
+	I2C_CLK_DIR_READ
+	lda #BIT_I2C_BOTH_LINES
+	trb PORT_A
 
 mainLoop:
 	jsr i2cStart
+
+	nop
+	nop
+	
 	lda #%11110000
+ 	jsr i2cSendByte
+ 	jsr i2cStop
+
+	nop
+	nop
+	
+	; Infinite loop.
+	jmp mainLoop
+
 	; lda #MONITOR_DEVICE_ID
 	; asl
-	jsr i2cSendByte
+	; jsr i2cSendByte
 
-	jsr i2cStart
-	lda #%10001000
-	jsr i2cSendByte
+	; jsr i2cStart
+	; lda #%10001000
+	; jsr i2cSendByte
 
 ; 	; Just in case, for testing.
 ; 	jsr i2cClear
@@ -337,11 +342,11 @@ mainLoop:
 ; 	bne loopy
 
 monitorTestExit:
-	jsr i2cStop
+	; jsr i2cStop
 	
-	ldx #$4
-	ldy #$1
-	jsr wasteTime
+	; ldx #$5
+	; ldy #$5
+	; jsr wasteTime
 	
 	; HACK: Anything working?
 	; lda #$41
