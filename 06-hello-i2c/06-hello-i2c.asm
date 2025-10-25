@@ -173,8 +173,8 @@ i2cSB1:
 	bcs i2cSB2
 	
 	tsb DATA_DIR_A 						; If the bit was 0, pull data line down by making it an output.
-	nop
-	nop
+	; nop
+	; nop
 
 	; Guesses as to why it's not working.
 	; Sun spot activity.
@@ -340,18 +340,23 @@ main:
 	lda #BIT_I2C_BOTH_LINES
 	trb PORT_A
 
+	; Going to reset the pins for the LCD control, just to make debugging the code
+	; clearer for a while. This should be able to be removed
+	lda LCD_CTRL_PINS_OUTPUT
+	trb PORT_A
+
 mainLoop:
 	jsr i2cStart
 
-	nop
-	nop
+	; nop
+	; nop
 	
 	lda #%11110000
  	jsr i2cSendByte
  	jsr i2cStop
 
-	nop
-	nop
+	; nop
+	; nop
 	
 	; Infinite loop.
 	bra mainLoop
